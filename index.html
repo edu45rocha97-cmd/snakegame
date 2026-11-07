@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#101827">
+<title>Snake — Jogo da Cobrinha</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#131e30;--panel2:#1a2940;--text:#edf4ff;--muted:#93a6c2;--green:#75e6a5;--green2:#35bd78;--red:#ff6b78;--line:#293a54}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#1c3150 0%,var(--bg) 58%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px}
+button{font:inherit;cursor:pointer;border:0}
+.app{width:min(100%,620px)}
+header{text-align:center;margin-bottom:20px}
+.eyebrow{font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--green);font-weight:800}
+h1{font-size:clamp(2rem,7vw,3.2rem);margin:4px 0 0;letter-spacing:-.06em}
+h1 span{color:var(--green)}
+.subtitle{margin:5px 0 0;color:var(--muted);font-size:.95rem}
+.panel{background:linear-gradient(145deg,rgba(25,39,60,.97),rgba(15,25,41,.97));border:1px solid var(--line);border-radius:24px;padding:clamp(14px,4vw,24px);box-shadow:0 24px 70px #0006}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.stat{background:var(--panel2);border:1px solid #2b405e;border-radius:14px;padding:10px 12px;text-align:center}
+.stat small{display:block;color:var(--muted);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.stat strong{display:block;font-size:1.35rem;margin-top:2px;font-variant-numeric:tabular-nums}
+.board-wrap{position:relative;border:1px solid #344b68;border-radius:16px;overflow:hidden;background:#0b1422;touch-action:none}
+canvas{display:block;width:100%;height:auto;aspect-ratio:1/1}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:#07101bd9;backdrop-filter:blur(5px);text-align:center}
+.overlay.hidden{display:none}
+.dialog{max-width:330px}
+.dialog .emoji{font-size:2.5rem;line-height:1.3}
+.dialog h2{font-size:1.8rem;margin:8px 0}
+.dialog p{color:#b4c4d9;line-height:1.5;margin:0 0 18px}
+.primary{background:var(--green);color:#082016;font-weight:850;padding:12px 24px;border-radius:12px;box-shadow:0 5px 0 #329d67;transition:transform .12s,filter .12s}
+.primary:hover{filter:brightness(1.06);transform:translateY(-1px)}
+.primary:active{transform:translateY(2px);box-shadow:0 2px 0 #329d67}
+.secondary{background:#263750;color:var(--text);border:1px solid #3a506e;padding:10px 16px;border-radius:11px;font-weight:700}
+.actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.hint{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:.8rem;margin-top:14px}
+kbd{background:#263750;border:1px solid #3c5270;border-radius:5px;padding:2px 6px;color:#e7f0ff;font:inherit;font-size:.75rem}
+.mobile-controls{display:none;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(2,52px);gap:7px;justify-content:center;margin:17px auto 0}
+.mobile-controls button{background:#243650;border:1px solid #3b5271;color:#eaf2ff;border-radius:12px;font-size:1.3rem;font-weight:800;touch-action:manipulation}
+.mobile-controls button:active{background:#345276}
+.mobile-controls .up{grid-column:2;grid-row:1}.mobile-controls .left{grid-column:1;grid-row:2}.mobile-controls .down{grid-column:2;grid-row:2}.mobile-controls .right{grid-column:3;grid-row:2}
+.footer{text-align:center;color:#7186a4;font-size:.75rem;margin-top:16px}
+@media(max-width:560px){body{padding:14px}.panel{border-radius:19px}.mobile-controls{display:grid}.hint{justify-content:center;text-align:center}.hint span:last-child{display:none}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <div class="eyebrow">Arcade clássico</div>
+    <h1>SNAKE<span>.</span></h1>
+    <p class="subtitle">Coma, cresça e tente bater seu recorde.</p>
+  </header>
+  <section class="panel" aria-label="Jogo da cobrinha">
+    <div class="stats">
+      <div class="stat"><small>Pontuação</small><strong id="score">0</strong></div>
+      <div class="stat"><small>Recorde</small><strong id="best">0</strong></div>
+      <div class="stat"><small>Velocidade</small><strong id="level">1x</strong></div>
+    </div>
+    <div class="board-wrap" id="boardWrap">
+      <canvas id="game" width="480" height="480" aria-label="Tabuleiro do jogo Snake"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="dialog">
+          <div class="emoji" id="overlayEmoji">🐍</div>
+          <h2 id="overlayTitle">Pronto para jogar?</h2>
+          <p id="overlayText">Use as setas ou WASD para controlar a cobrinha. Colete a comida e evite bater!</p>
+          <button class="primary" id="mainButton">Começar jogo</button>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="secondary" id="pauseButton" disabled>Ⅱ Pausar</button>
+      <button class="secondary" id="restartButton">↻ Reiniciar</button>
+    </div>
+    <div class="mobile-controls" aria-label="Controles direcionais">
+      <button class="up" data-dir="up" aria-label="Cima">▲</button>
+      <button class="left" data-dir="left" aria-label="Esquerda">◀</button>
+      <button class="down" data-dir="down" aria-label="Baixo">▼</button>
+      <button class="right" data-dir="right" aria-label="Direita">▶</button>
+    </div>
+    <div class="hint">
+      <span>Movimento: <kbd>↑</kbd> <kbd>←</kbd> <kbd>↓</kbd> <kbd>→</kbd> ou <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></span>
+      <span>Pausar: <kbd>Espaço</kbd> ou <kbd>P</kbd></span>
+    </div>
+  </section>
+  <div class="footer">Feito para jogar direto no navegador · Sem instalações ou dependências</div>
+</main>
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const overlay = document.getElementById("overlay");
+  const overlayEmoji = document.getElementById("overlayEmoji");
+  const overlayTitle = document.getElementById("overlayTitle");
+  const overlayText = document.getElementById("overlayText");
+  const mainButton = document.getElementById("mainButton");
+  const pauseButton = document.getElementById("pauseButton");
+  const restartButton = document.getElementById("restartButton");
+  const scoreElement = document.getElementById("score");
+  const bestElement = document.getElementById("best");
+  const levelElement = document.getElementById("level");
+  const boardWrap = document.getElementById("boardWrap");
+
+  const GRID = 24;
+  const CELL = canvas.width / GRID;
+  const INITIAL_LENGTH = 4;
+  const DIRECTIONS = {
+    up: { x: 0, y: -1 },
+    down: { x: 0, y: 1 },
+    left: { x: -1, y: 0 },
+    right: { x: 1, y: 0 }
+  };
+  const OPPOSITE = { up: "down", down: "up", left: "right", right: "left" };
+
+  let snake = [];
+  let food = { x: 12, y: 12 };
+  let direction = "right";
+  let nextDirection = "right";
+  let score = 0;
+  let best = loadBest();
+  let state = "menu"; // menu | playing | paused | gameover
+  let lastStep = 0;
+  let accumulator = 0;
+  let animationId = null;
+  let touchStart = null;
+
+  bestElement.textContent = best;
+
+  function loadBest() {
+    try { return Number(localStorage.getItem("snakeBest") || 0); }
+    catch (_) { return 0; }
+  }
+
+  function saveBest() {
+    try { localStorage.setItem("snakeBest", String(best)); }
+    catch (_) { /* O jogo continua funcionando sem armazenamento local. */ }
+  }
+
+  function speed() {
+    return Math.max(65, 145 - Math.floor(score / 5) * 10);
+  }
+
+  function updateStats() {
+    scoreElement.textContent = score;
+    bestElement.textContent = best;
+    levelElement.textContent = (1 + Math.floor(score / 5)) + "x";
+  }
+
+  function resetBoard() {
+    const middle = Math.floor(GRID / 2);
+    snake = [];
+    for (let i = 0; i < INITIAL_LENGTH; i++) {
+      snake.push({ x: middle - i, y: middle });
+    }
+    direction = "right";
+    nextDirection = "right";
+    score = 0;
+    placeFood();
+    updateStats();
+    draw();
+  }
+
+  function placeFood() {
+    const empty = [];
+    for (let y = 0; y < GRID; y++) {
+      for (let x = 0; x < GRID; x++) {
+        if (!snake.some(segment => segment.x === x && segment.y === y)) empty.push({ x, y });
+      }
+    }
+    if (empty.length === 0) {
+      winGame();
+      return;
+    }
+    food = empty[Math.floor(Math.random() * empty.length)];
+  }
+
+  function startGame() {
+    if (animationId !== null) cancelAnimationFrame(animationId);
+    animationId = null;
+    resetBoard();
+    state = "playing";
+    overlay.classList.add("hidden");
+    pauseButton.disabled = false;
+    pauseButton.textContent = "Ⅱ Pausar";
+    lastStep = 0;
+    accumulator = 0;
+    animationId = requestAnimationFrame(gameLoop);
+  }
+
+  function showOverlay(type) {
+    overlay.classList.remove("hidden");
+    if (type === "menu") {
+      overlayEmoji.textContent = "🐍";
+      overlayTitle.textContent = "Pronto para jogar?";
+      overlayText.textContent = "Use as setas ou WASD para controlar a cobrinha. Colete a comida e evite bater!";
+      mainButton.textContent = "Começar jogo";
+    } else if (type === "paused") {
+      overlayEmoji.textContent = "⏸️";
+      overlayTitle.textContent = "Jogo pausado";
+      overlayText.textContent = "Respire. Sua cobrinha espera por você.";
+      mainButton.textContent = "Continuar";
+    } else if (type === "gameover") {
+      overlayEmoji.textContent = "💥";
+      overlayTitle.textContent = "Fim de jogo!";
+      overlayText.textContent = `Você fez ${score} ${score === 1 ? "ponto" : "pontos"}. Que tal tentar novamente?`;
+      mainButton.textContent = "Jogar novamente";
+    } else if (type === "won") {
+      overlayEmoji.textContent = "🏆";
+      overlayTitle.textContent = "Tabuleiro completo!";
+      overlayText.textContent = `Incrível! Você ocupou todo o tabuleiro com ${score} pontos.`;
+      mainButton.textContent = "Jogar novamente";
+    }
+  }
+
+  function togglePause() {
+    if (state === "playing") {
+      state = "paused";
+      if (animationId !== null) cancelAnimationFrame(animationId);
+      animationId = null;
+      pauseButton.textContent = "▶ Continuar";
+      showOverlay("paused");
+    } else if (state === "paused") {
+      state = "playing";
+      overlay.classList.add("hidden");
+      pauseButton.textContent = "Ⅱ Pausar";
+      lastStep = 0;
+      accumulator = 0;
+      animationId = requestAnimationFrame(gameLoop);
+    }
+  }
+
+  function endGame() {
+    state = "gameover";
+    if (animationId !== null) cancelAnimationFrame(animationId);
+    animationId = null;
+    pauseButton.disabled = true;
+    showOverlay("gameover");
+    draw();
+  }
+
+  function winGame() {
+    state = "gameover";
+    if (animationId !== null) cancelAnimationFrame(animationId);
+    animationId = null;
+    pauseButton.disabled = true;
+    showOverlay("won");
+    draw();
+  }
+
+  function changeDirection(requested) {
+    if (state !== "playing" || !DIRECTIONS[requested]) return;
+    // Com apenas uma mudança aceita por passo, não é possível inverter em sequência.
+    if (requested === OPPOSITE[direction]) return;
+    if (requested === OPPOSITE[nextDirection]) return;
+    nextDirection = requested;
+  }
+
+  function update() {
+    direction = nextDirection;
+    const vector = DIRECTIONS[direction];
+    const head = { x: snake[0].x + vector.x, y: snake[0].y + vector.y };
+    const eating = head.x === food.x && head.y === food.y;
+
+    // Ao não comer, a cauda sai neste passo; entrar na antiga posição da cauda é permitido.
+    const bodyToCheck = eating ? snake : snake.slice(0, -1);
+    const hitWall = head.x < 0 || head.x >= GRID || head.y < 0 || head.y >= GRID;
+    const hitSelf = bodyToCheck.some(segment => segment.x === head.x && segment.y === head.y);
+    if (hitWall || hitSelf) {
+      endGame();
+      return;
+    }
+
+    snake.unshift(head);
+    if (eating) {
+      score++;
+      if (score > best) {
+        best = score;
+        saveBest();
+      }
+      updateStats();
+      placeFood();
+      if (state !== "playing") return;
+    } else {
+      snake.pop();
+    }
+  }
+
+  function drawRoundedCell(x, y, color, inset = 2, radius = 5) {
+    const px = x * CELL + inset;
+    const py = y * CELL + inset;
+    const size = CELL - inset * 2;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(px, py, size, size, radius);
+    ctx.fill();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#0b1422";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Grade discreta para facilitar a leitura do tabuleiro.
+    ctx.strokeStyle = "rgba(125, 157, 190, 0.075)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < GRID; i++) {
+      const pos = i * CELL;
+      ctx.beginPath(); ctx.moveTo(pos, 0); ctx.lineTo(pos, canvas.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, pos); ctx.lineTo(canvas.width, pos); ctx.stroke();
+    }
+
+    // Comida com brilho suave.
+    const fx = (food.x + 0.5) * CELL;
+    const fy = (food.y + 0.5) * CELL;
+    ctx.shadowColor = "#ff6878";
+    ctx.shadowBlur = 13;
+    ctx.fillStyle = "#ff6878";
+    ctx.beginPath(); ctx.arc(fx, fy, CELL * 0.31, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#ffd0d4";
+    ctx.beginPath(); ctx.arc(fx - 2, fy - 2, CELL * 0.09, 0, Math.PI * 2); ctx.fill();
+
+    // Corpo: tons alternados e cabeça destacada.
+    snake.forEach((segment, index) => {
+      const color = index === 0 ? "#9af3bd" : (index % 2 ? "#4dcc88" : "#39b978");
+      drawRoundedCell(segment.x, segment.y, color, index === 0 ? 1.5 : 2.5, index === 0 ? 7 : 5);
+    });
+
+    // Olhos indicam para onde a cabeça está olhando.
+    if (snake.length) {
+      const head = snake[0];
+      const cx = (head.x + 0.5) * CELL;
+      const cy = (head.y + 0.5) * CELL;
+      const eyeOffset = 4.2;
+      let eyes;
+      if (direction === "right") eyes = [[cx + 3, cy - eyeOffset], [cx + 3, cy + eyeOffset]];
+      else if (direction === "left") eyes = [[cx - 3, cy - eyeOffset], [cx - 3, cy + eyeOffset]];
+      else if (direction === "up") eyes = [[cx - eyeOffset, cy - 3], [cx + eyeOffset, cy - 3]];
+      else eyes = [[cx - eyeOffset, cy + 3], [cx + eyeOffset, cy + 3]];
+      ctx.fillStyle = "#123525";
+      eyes.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill(); });
+    }
+  }
+
+  function gameLoop(timestamp) {
+    if (state !== "playing") {
+      animationId = null;
+      return;
+    }
+    if (!lastStep) lastStep = timestamp;
+    const delta = Math.min(timestamp - lastStep, 250);
+    lastStep = timestamp;
+    accumulator += delta;
+
+    let interval = speed();
+    while (accumulator >= interval && state === "playing") {
+      update();
+      accumulator -= interval;
+      interval = speed();
+    }
+    draw();
+
+    if (state === "playing") animationId = requestAnimationFrame(gameLoop);
+    else animationId = null;
+  }
+
+  function handleKey(event) {
+    const key = event.key.toLowerCase();
+    const keyDirections = {
+      arrowup: "up", w: "up",
+      arrowdown: "down", s: "down",
+      arrowleft: "left", a: "left",
+      arrowright: "right", d: "right"
+    };
+    if (keyDirections[key]) {
+      event.preventDefault();
+      changeDirection(keyDirections[key]);
+    } else if (key === " " || key === "p") {
+      event.preventDefault();
+      if (state === "playing" || state === "paused") togglePause();
+      else if (state === "menu") startGame();
+    } else if (key === "enter" && (state === "menu" || state === "gameover")) {
+      startGame();
+    }
+  }
+
+  mainButton.addEventListener("click", () => {
+    if (state === "paused") togglePause();
+    else startGame();
+  });
+  pauseButton.addEventListener("click", togglePause);
+  restartButton.addEventListener("click", startGame);
+  document.addEventListener("keydown", handleKey);
+
+  document.querySelectorAll("[data-dir]").forEach(button => {
+    button.addEventListener("click", () => changeDirection(button.dataset.dir));
+  });
+
+  // Gestos de deslizar no próprio tabuleiro.
+  boardWrap.addEventListener("pointerdown", event => {
+    touchStart = { x: event.clientX, y: event.clientY };
+  });
+  boardWrap.addEventListener("pointerup", event => {
+    if (!touchStart) return;
+    const dx = event.clientX - touchStart.x;
+    const dy = event.clientY - touchStart.y;
+    touchStart = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 22) return;
+    if (Math.abs(dx) > Math.abs(dy)) changeDirection(dx > 0 ? "right" : "left");
+    else changeDirection(dy > 0 ? "down" : "up");
+  });
+  boardWrap.addEventListener("pointercancel", () => { touchStart = null; });
+
+  resetBoard();
+  showOverlay("menu");
+  pauseButton.disabled = true;
+})();
+</script>
+</body>
+</html>
